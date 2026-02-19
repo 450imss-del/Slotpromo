@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Slot Promoción - Firebase</title>
+
+<!-- Firebase SDKs -->
+<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-functions-compat.js"></script>
+
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  margin: 0;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+  color: white;
+  text-align: center;
+  min-height: 100vh;
+  padding: 20px;
+}
+h1 {
+  color: #ffd700;
+  margin-top: 20px;
+  font-size: 2.5em;
+  text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+}
+.subtitle { color: #ccc; margin: 10px 0; }
+.whatsapp {
+  color: #00ff99;
+  font-weight: bold;
+  margin: 15px 0;
+}
+input, button {
+  padding: 12px 20px;
+  margin: 10px;
+  border-radius: 25px;
+  border: none;
+  font-size: 16px;
+  outline: none;
+}
+input {
+  background: rgba(255,255,255,0.1);
+  color: white;
+  width: 250px;
+  border: 2px solid #ffd700;
+}
+input::placeholder { color: #aaa; }
+button {
+  background: linear-gradient(45deg, #ffd700, #ffed4e);
+  color: #1a1a2e;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.3s;
+  box-shadow: 0 4px 15px rgba(255,215,0,0.3);
+}
+button:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(255,215,0,0.4);
+}
+button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+.slot-container {
+  display: flex;
+  justify-content: center;
+  margin: 40px 0;
+  gap: 15px;
+}
+.reel {
+  width: 100px;
+  height: 100px;
+  background: linear-gradient(145deg, #0f0f23, #1a1a3e);
+  border: 4px solid #ffd700;
+  font-size: 50px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 15px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.3), inset 0 2px 10px rgba(255,255,255,0.1);
+  position: relative;
+  overflow: hidden;
+}
+.reel.spinning {
+  animation: pulse 0.1s infinite;
+}
+@keyframes pulse {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(0.95); }
+}
+.premio-texto {
+  margin-top: 20px;
+  font-size: 22px;
+  color: #00ff99;
+  font-weight: bold;
+  min-height: 30px;
+}
+.resultado {
+  margin-top: 25px;
+  font-size: 28px;
+  font-weight: bold;
+  min-height: 40px;
+}
+.ganaste { color: #00ff00; text-shadow: 0 0 20px #00ff00; animation: glow 1s ease-in-out infinite alternate; }
+.perdiste { color: #ff4444; }
+@keyframes glow {
+  from { text-shadow: 0 0 10px #00ff00; }
+  to { text-shadow: 0 0 20px #00ff00, 0 0 30px #00ff00; }
+}
+.reglas {
+  margin-top: 40px;
+  font-size: 14px;
+  color: #aaa;
+  padding: 20px;
+  background: rgba(0,0,0,0.2);
+  border-radius: 10px;
+  max-width: 600px;
+  margin-left: auto;
+  margin-right: auto;
+}
+.error-msg {
+  color: #ff6b6b;
+  margin-top: 10px;
+  font-size: 14px;
+}
+.loading {
+  color: #ffd700;
+  font-style: italic;
+}
+</style>
+</head>
+<body>
+
+<h1>🎰 SLOT PROMOCIÓN</h1>
+<p class="subtitle">Gana increíbles premios desde perfiles hasta cuentas completas</p>
+<p class="whatsapp">Compra tu código por WhatsApp: <span style="color:white">5647385519</span></p>
+
+<input type="text" id="codigo" placeholder="Ingresa tu código" maxlength="20">
+<br>
+<button id="btnGirar" onclick="girar()">GIRAR</button>
+<div class="error-msg" id="errorMsg"></div>
+
+<div class="slot-container">
+  <div class="reel" id="r1">❓</div>
+  <div class="reel" id="r2">❓</div>
+  <div class="reel" id="r3">❓</div>
+</div>
+
+<div class="premio-texto" id="premioTexto">Cargando...</div>
+<div class="resultado" id="resultado"></div>
+
+<div class="reglas">
+  <b>📋 REGLAS DEL JUEGO</b><br><br>
+  • Cada código equivale a un giro.<br>
+  • El código solo puede usarse una vez.<br>
+  • Si obtienes 3 figuras iguales ganas el premio.<br>
+  • Toma captura y envíala por WhatsApp.<br>
+  • Los resultados son procesados de forma segura en nuestros servidores.
+</div>
+
+<script>
+// ==================== CONFIGURACIÓN FIREBASE ====================
+// REEMPLAZA con tus credenciales de Firebase Console > Configuración del proyecto > General
+const firebaseConfig = {
+  apiKey: "TU_API_KEY_AQUI", // Esta key es pública por diseño en Firebase
+  authDomain: "tu-proyecto.firebaseapp.com",
+  projectId: "tu-proyecto",
+  storageBucket: "tu-proyecto.appspot.com",
+  messagingSenderId: "123456789",
+  appId: "1:123456789:web:abcdef123456"
+};
+
+// Inicializar Firebase
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+const functions = firebase.functions();
+
+// Para desarrollo local (emulador), descomenta:
+// functions.useEmulator("localhost", 5001);
+
+const simbolos = ["💎", "💰", "👑", "🍀", "⭐"];
+let isSpinning = false;
+
+// ==================== CARGAR PREMIO ACTUAL ====================
+async function cargarPremio() {
+  try {
+    const getConfig = functions.httpsCallable('getConfig');
+    const result = await getConfig({});
+    const config = result.data;
+    
+    const premioTexto = document.getElementById("premioTexto");
+    if (config.premio_nombre) {
+      premioTexto.innerText = `🏆 Premio actual: ${config.premio_nombre}`;
+      if (config.premios_restantes !== undefined) {
+        premioTexto.innerText += ` (${config.premios_restantes} disponibles)`;
+      }
+    } else {
+      premioTexto.innerText = "🎰 ¡Gira para ganar!";
+    }
+  } catch (error) {
+    console.error("Error cargando premio:", error);
+    document.getElementById("premioTexto").innerText = "🎰 ¡Gira para ganar!";
+  }
+}
+
+// Cargar al iniciar
+cargarPremio();
+
+// ==================== LÓGICA DEL JUEGO ====================
+async function girar() {
+  if (isSpinning) return;
+  
+  const codigoInput = document.getElementById("codigo");
+  const codigo = codigoInput.value.trim().toUpperCase();
+  const btn = document.getElementById("btnGirar");
+  const errorMsg = document.getElementById("errorMsg");
+  const resultadoDiv = document.getElementById("resultado");
+  
+  // Reset UI
+  errorMsg.innerText = "";
+  resultadoDiv.innerHTML = "";
+  resultadoDiv.className = "resultado";
+  
+  // Validación
+  if (!codigo) {
+    errorMsg.innerText = "⚠️ Ingresa un código válido";
+    return;
+  }
+
+  // Deshabilitar controles
+  isSpinning = true;
+  btn.disabled = true;
+  btn.innerText = "GIRANDO...";
+  codigoInput.disabled = true;
+
+  // Referencias a los reels
+  const reels = ["r1", "r2", "r3"];
+  const intervalos = [];
+
+  // Animación: cambiar símbolos aleatoriamente cada 100ms
+  reels.forEach(id => {
+    const el = document.getElementById(id);
+    el.classList.add("spinning");
+    intervalos.push(setInterval(() => {
+      el.innerText = simbolos[Math.floor(Math.random() * simbolos.length)];
+    }, 100));
+  });
+
+  try {
+    // ==================== LLAMADA SEGURA AL SERVIDOR ====================
+    // Aquí es donde la magia sucede: la lógica del juego está en la Cloud Function
+    const spinSlot = functions.httpsCallable('spinSlot');
+    const result = await spinSlot({ codigo: codigo });
+    const data = result.data;
+
+    // Esperar 2 segundos de animación mínima (efecto dramático)
+    await new Promise(resolve => setTimeout(resolve, 2000));
+
+    // Detener animación
+    intervalos.forEach(i => clearInterval(i));
+    reels.forEach(id => document.getElementById(id).classList.remove("spinning"));
+
+    // Mostrar resultado real del servidor
+    const simbolosFinales = data.simbolosMostrados;
+    document.getElementById("r1").innerText = simbolosFinales[0];
+    document.getElementById("r2").innerText = simbolosFinales[1];
+    document.getElementById("r3").innerText = simbolosFinales[2];
+
+    if (data.gana) {
+      // 🎉 GANADOR
+      resultadoDiv.innerHTML = `<span class="ganaste">¡🎉 GANASTE! 🎉</span><br><small>${data.premio_nombre}</small>`;
+      
+      // Efecto especial para ganador
+      reels.forEach((id, index) => {
+        setTimeout(() => {
+          document.getElementById(id).style.transform = "scale(1.2)";
+          setTimeout(() => {
+            document.getElementById(id).style.transform = "scale(1)";
+          }, 200);
+        }, index * 100);
+      });
+      
+      // Recargar premio para actualizar contador
+      setTimeout(cargarPremio, 1000);
+      
+    } else {
+      // 😢 PERDEDOR
+      resultadoDiv.innerHTML = `<span class="perdiste">😔 Suerte para la próxima</span>`;
+    }
+
+    // Limpiar input después de uso exitoso
+    codigoInput.value = "";
+
+  } catch (error) {
+    // ==================== MANEJO DE ERRORES ====================
+    console.error("Error:", error);
+    
+    // Detener animación
+    intervalos.forEach(i => clearInterval(i));
+    reels.forEach(id => {
+      document.getElementById(id).classList.remove("spinning");
+      document.getElementById(id).innerText = "❌";
+    });
+
+    // Mostrar error específico
+    let mensaje = "Error de conexión. Intenta de nuevo.";
+    if (error.code === 'invalid-argument') mensaje = "Código inválido";
+    else if (error.code === 'not-found') mensaje = "Código no encontrado";
+    else if (error.code === 'already-exists') mensaje = "⚠️ Este código ya fue usado";
+    else if (error.message) mensaje = error.message;
+    
+    errorMsg.innerText = "❌ " + mensaje;
+    resultadoDiv.innerHTML = `<span class="perdiste">Error</span>`;
+
+  } finally {
+    // Rehabilitar controles
+    isSpinning = false;
+    btn.disabled = false;
+    btn.innerText = "GIRAR";
+    codigoInput.disabled = false;
+    codigoInput.focus();
+  }
+}
+
+// Permitir Enter para girar
+document.getElementById("codigo").addEventListener("keypress", function(e) {
+  if (e.key === "Enter") girar();
+});
+</script>
+
+</body>
+                                       </html>
+                                       
