@@ -1,0 +1,23 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Config solo lectura para usuarios autenticados (o público según necesites)
+    match /config/{docId} {
+      allow read: if true;
+      allow write: if false; // Solo admin via consola o función privada
+    }
+    
+    // Códigos: solo lectura por ID específico, no listado masivo
+    match /codigos/{codigoId} {
+      allow read: if request.auth != null && request.auth.token.codigo == codigoId;
+      allow write: if false; // Solo Cloud Functions puede modificar
+    }
+    
+    // Resultados: crear solo si viene de función válida (usando App Check idealmente)
+    match /resultados/{docId} {
+      allow create: if request.auth != null && request.resource.data.codigo == request.auth.token.codigo;
+      allow read: if request.auth != null && request.resource.data.userId == request.auth.uid;
+    }
+  }
+}
